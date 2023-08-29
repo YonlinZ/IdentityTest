@@ -47,5 +47,64 @@ namespace IdentityCenter.Controllers
 
             return "ok";
         }
+
+        [HttpPost]
+        public async Task<ActionResult> CheckPwd(CheckPwdRequest req)
+        {
+            var user = await userManager.FindByNameAsync(req.userName);
+            if (user == null)
+            {
+                return NotFound("用户名不存在");
+            }
+            if (await userManager.IsLockedOutAsync(user))
+            {
+                return BadRequest("用户被锁定");
+            }
+            if (await userManager.CheckPasswordAsync(user, req.pwd))
+            {
+                await userManager.ResetAccessFailedCountAsync(user);
+                return Ok("登录成功");
+            }
+            else
+            {
+                await userManager.AccessFailedAsync(user);
+                return BadRequest("用户名或密码错误");
+            }
+        }
+
+        [HttpPost]
+        public async Task<ActionResult> SendResetPasswordToken(string userName)
+        {
+            var user = await userManager.FindByNameAsync(userName);
+            if (user == null)
+            {
+                return NotFound("用户名不存在");
+            }
+            var token = await userManager.GeneratePasswordResetTokenAsync(user);
+            //await Console.Out.WriteLineAsync($"验证码: {token}");
+            return Ok($"验证码: {token}");
+        }
+
+        [HttpPut]
+        public async Task<ActionResult> ResetPassword(string userName, string token, string newPwd)
+        {
+            var user = await userManager.FindByNameAsync(userName);
+            if (user == null)
+            {
+                return NotFound("用户名不存在");
+            }
+
+            var result = await userManager.ResetPasswordAsync(user, token, newPwd);
+            if (result.Succeeded)
+            {
+                await userManager.ResetAccessFailedCountAsync(user);
+                return Ok("密码重置成功");
+            }
+            else
+            {
+                await userManager.AccessFailedAsync(user);
+                return BadRequest("密码重置失败！");
+            }
+        }
     }
 }
